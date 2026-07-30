@@ -62,6 +62,14 @@
     line-height:1.1;
   }
   .brand span{ color:var(--magenta); }
+  .madeby{
+    font-family:'Courier New', monospace;
+    font-size:9.5px;
+    letter-spacing:2px;
+    color:rgba(255,255,255,0.55);
+    margin-top:3px;
+  }
+  .madeby span{ color:var(--yellow); font-weight:bold; }
   .status-pill{
     font-family: 'Courier New', monospace;
     font-size:11px;
@@ -174,6 +182,17 @@
     border-radius:100px;
     cursor:pointer;
   }
+  .gate-madeby{
+    position:absolute;
+    bottom: max(18px, env(safe-area-inset-bottom));
+    left:0; right:0;
+    text-align:center;
+    font-family:'Courier New', monospace;
+    font-size:10.5px;
+    letter-spacing:2px;
+    color:rgba(255,255,255,0.4);
+  }
+  .gate-madeby span{ color:var(--yellow); font-weight:bold; }
   .gate .err{
     margin-top:16px;
     color:var(--magenta);
@@ -239,7 +258,10 @@
   <div class="bracket br" id="b-br"></div>
 
   <div class="hud-top">
-    <div class="brand">PEACE<span>://</span>BLUR</div>
+    <div class="brandwrap">
+      <div class="brand">PEACE<span>://</span>BLUR</div>
+      <div class="madeby">MADE IN <span>MAMAN</span></div>
+    </div>
     <div class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">SCANNING</span></div>
   </div>
 
@@ -253,6 +275,7 @@
   </div>
 
   <div class="flash" id="flash"></div>
+  <audio id="blurAudio" src="foto-kita-blur.mp3" loop preload="auto"></audio>
 </div>
 
 <div class="gate" id="gate">
@@ -260,6 +283,7 @@
   <p>KAMERA LO BAKAL BLUR TERUS. MUNCUL CUMA KALO LO KASIH TANDA DAMAI ✌️ KE LAYAR. IZININ AKSES KAMERA BUAT MULAI.</p>
   <button id="startBtn">NYALAIN KAMERA</button>
   <div class="err" id="errBox" style="display:none;"></div>
+  <div class="gate-madeby">MADE IN <span>MAMAN</span></div>
 </div>
 
 <div class="preview-wrap" id="previewWrap">
@@ -292,7 +316,7 @@
   const retakeBtn = document.getElementById('retakeBtn');
   const saveBtn = document.getElementById('saveBtn');
 
-  let isClear = false;       // true when peace sign detected
+  let isClear = false;       // true when peace sign detected (drives blur now)
   let manualForceBlur = false; // toggle button forces always-blur (ignores gesture)
   let currentFacing = 'user';
   let stream = null;
@@ -301,6 +325,34 @@
   let lastDetectTime = 0;
 
   const BLUR_PX = 26;
+
+  // ---- blur theme: plays the user's own mp3 while the peace-sign blur is active ----
+  const blurAudio = document.getElementById('blurAudio');
+  let audioUnlocked = false;
+
+  function unlockAudio(){
+    if(audioUnlocked) return;
+    audioUnlocked = true;
+    // muted priming play, required by some mobile browsers before real playback works
+    blurAudio.muted = true;
+    blurAudio.play().then(()=>{
+      blurAudio.pause();
+      blurAudio.currentTime = 0;
+      blurAudio.muted = false;
+    }).catch(()=>{ blurAudio.muted = false; });
+  }
+
+  function startBlurMusic(){
+    blurAudio.play().catch(()=>{ /* will retry on next gesture-driven call */ });
+  }
+
+  function stopBlurMusic(){
+    blurAudio.pause();
+  }
+
+  function updateBlurMusic(shouldBlur){
+    if(shouldBlur) startBlurMusic(); else stopBlurMusic();
+  }
 
   function setStatus(clear){
     isClear = clear;
@@ -322,6 +374,7 @@
       hint.textContent = 'angkat 2 jari (✌️) buat mem-blur fotonya';
       brackets.forEach(b=>b.classList.add('clear'));
     }
+    updateBlurMusic(manualForceBlur ? true : clear);
   }
 
   function dist(a, b){
@@ -385,6 +438,7 @@
   }
 
   async function init(){
+    unlockAudio();
     try{
       await startCamera(currentFacing);
     }catch(e){
@@ -425,6 +479,7 @@
     manualForceBlur = !manualForceBlur;
     blurToggleBtn.style.background = manualForceBlur ? 'rgba(255,46,126,0.35)' : 'rgba(255,255,255,0.08)';
     setStatus(isClear);
+    updateBlurMusic(manualForceBlur ? true : isClear);
   });
 
   shutterBtn.addEventListener('click', ()=>{
@@ -440,6 +495,19 @@
     sctx.translate(shotCanvas.width, 0);
     sctx.scale(-1,1);
     sctx.drawImage(canvas, 0, 0);
+
+    // stamp watermark in normal (non-mirrored) orientation
+    sctx.setTransform(1, 0, 0, 1, 0, 0);
+    const pad = Math.max(14, shotCanvas.width * 0.02);
+    const fontSize = Math.max(16, Math.round(shotCanvas.width * 0.028));
+    sctx.font = `900 ${fontSize}px Arial, sans-serif`;
+    sctx.textBaseline = 'bottom';
+    const label = 'MADE IN MAMAN';
+    const tw = sctx.measureText(label).width;
+    sctx.fillStyle = 'rgba(0,0,0,0.45)';
+    sctx.fillRect(pad - 8, shotCanvas.height - pad - fontSize - 6, tw + 16, fontSize + 14);
+    sctx.fillStyle = '#ffd23f';
+    sctx.fillText(label, pad, shotCanvas.height - pad);
 
     const dataUrl = shotCanvas.toDataURL('image/png');
     previewImg.src = dataUrl;
