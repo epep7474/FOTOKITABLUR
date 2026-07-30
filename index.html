@@ -324,13 +324,24 @@
     }
   }
 
+  function dist(a, b){
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  function fingerExtended(landmarks, tipIdx, pipIdx, mcpIdx){
+    const wrist = landmarks[0];
+    const tip = landmarks[tipIdx];
+    const pip = landmarks[pipIdx];
+    // orientation-independent: an extended finger's tip sits further from the
+    // wrist than its pip joint does, regardless of which way the hand is rotated
+    return dist(wrist, tip) > dist(wrist, pip) * 1.1;
+  }
+
   function isPeaceSign(landmarks){
-    // landmarks: 21 points, normalized coords, y grows downward
-    const tip = i => landmarks[i];
-    const indexUp  = tip(8).y  < tip(6).y  - 0.02;
-    const middleUp = tip(12).y < tip(10).y - 0.02;
-    const ringDown  = tip(16).y > tip(14).y - 0.01;
-    const pinkyDown = tip(20).y > tip(18).y - 0.01;
+    const indexUp  = fingerExtended(landmarks, 8, 6, 5);
+    const middleUp = fingerExtended(landmarks, 12, 10, 9);
+    const ringDown  = !fingerExtended(landmarks, 16, 14, 13);
+    const pinkyDown = !fingerExtended(landmarks, 20, 18, 17);
     return indexUp && middleUp && ringDown && pinkyDown;
   }
 
