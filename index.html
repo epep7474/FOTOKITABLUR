@@ -312,15 +312,15 @@
       return;
     }
     if(clear){
-      statusPill.classList.add('clear');
-      statusText.textContent = 'JELAS ✌️';
-      hint.textContent = 'mantap, tahan tandanya buat foto';
-      brackets.forEach(b=>b.classList.add('clear'));
-    } else {
       statusPill.classList.remove('clear');
-      statusText.textContent = 'SCANNING';
-      hint.textContent = 'angkat 2 jari (✌️) buat munculin fotonya';
+      statusText.textContent = 'BLUR ✌️';
+      hint.textContent = 'lagi ngasih tanda damai — fotonya diburemin';
       brackets.forEach(b=>b.classList.remove('clear'));
+    } else {
+      statusPill.classList.add('clear');
+      statusText.textContent = 'JELAS';
+      hint.textContent = 'angkat 2 jari (✌️) buat mem-blur fotonya';
+      brackets.forEach(b=>b.classList.add('clear'));
     }
   }
 
@@ -349,7 +349,7 @@
     if(!video.videoWidth) return;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    const shouldBlur = manualForceBlur ? true : !isClear;
+    const shouldBlur = manualForceBlur ? true : isClear;
     ctx.filter = shouldBlur ? `blur(${BLUR_PX}px)` : 'none';
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
   }
