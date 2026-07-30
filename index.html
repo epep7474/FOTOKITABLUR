@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>PEACE://BLUR</title>
+<style>
+  @font-face {
+    font-family: 'system-display';
+    src: local('Arial Black');
+  }
+  :root{
+    --bg:#08080c;
+    --cyan:#00e6d8;
+    --magenta:#ff2e7e;
+    --yellow:#ffd23f;
+    --line: rgba(255,255,255,0.14);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background:var(--bg);
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    color:#fff;
+  }
+  .stage{
+    position:relative;
+    width:100%;
+    height:100vh;
+    height:100dvh;
+    overflow:hidden;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#000;
+  }
+  video, canvas.output{
+    position:absolute;
+    top:50%; left:50%;
+    transform:translate(-50%,-50%) scaleX(-1);
+    min-width:100%;
+    min-height:100%;
+    width:auto;
+    height:auto;
+    object-fit:cover;
+  }
+  video{ opacity:0; pointer-events:none; }
+
+  /* top HUD */
+  .hud-top{
+    position:absolute; top:0; left:0; right:0;
+    padding: max(18px, env(safe-area-inset-top)) 18px 0 18px;
+    z-index:5;
+    display:flex; align-items:flex-start; justify-content:space-between;
+    pointer-events:none;
+  }
+  .brand{
+    font-family: 'Arial Black', Helvetica, sans-serif;
+    font-weight:900;
+    font-size:15px;
+    letter-spacing:2px;
+    line-height:1.1;
+  }
+  .brand span{ color:var(--magenta); }
+  .status-pill{
+    font-family: 'Courier New', monospace;
+    font-size:11px;
+    letter-spacing:1.5px;
+    padding:7px 12px;
+    border-radius:100px;
+    border:1px solid var(--line);
+    background:rgba(0,0,0,0.45);
+    backdrop-filter: blur(6px);
+    display:flex;
+    align-items:center;
+    gap:7px;
+    transition: border-color .25s ease, color .25s ease;
+  }
+  .status-pill .dot{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--magenta);
+    box-shadow:0 0 8px var(--magenta);
+    transition: background .25s ease, box-shadow .25s ease;
+  }
+  .status-pill.clear{ color:var(--cyan); border-color: rgba(0,230,216,0.5); }
+  .status-pill.clear .dot{ background:var(--cyan); box-shadow:0 0 8px var(--cyan); }
+
+  /* corner brackets - viewfinder feel */
+  .bracket{ position:absolute; width:26px; height:26px; border-color:rgba(255,255,255,0.55); z-index:5; pointer-events:none; transition: border-color .25s ease;}
+  .bracket.tl{ top:14%; left:14px; border-top:2px solid; border-left:2px solid; }
+  .bracket.tr{ top:14%; right:14px; border-top:2px solid; border-right:2px solid; }
+  .bracket.bl{ bottom:16%; left:14px; border-bottom:2px solid; border-left:2px solid; }
+  .bracket.br{ bottom:16%; right:14px; border-bottom:2px solid; border-right:2px solid; }
+  .bracket.clear{ border-color: var(--cyan); }
+
+  /* bottom controls */
+  .hud-bottom{
+    position:absolute; bottom:0; left:0; right:0;
+    padding: 0 24px max(26px, env(safe-area-inset-bottom)) 24px;
+    z-index:6;
+    display:flex; flex-direction:column; align-items:center; gap:14px;
+  }
+  .hint{
+    font-family:'Courier New', monospace;
+    font-size:11.5px;
+    letter-spacing:1px;
+    color:rgba(255,255,255,0.75);
+    text-align:center;
+    background:rgba(0,0,0,0.4);
+    padding:6px 14px;
+    border-radius:100px;
+    border:1px solid var(--line);
+  }
+  .controls-row{ display:flex; align-items:center; gap:28px; }
+  .shutter{
+    width:70px; height:70px;
+    border-radius:50%;
+    background:#fff;
+    border:4px solid rgba(255,255,255,0.35);
+    position:relative;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+  }
+  .shutter:active{ transform: scale(0.94); }
+  .shutter .ring{
+    position:absolute; inset:-4px;
+    border-radius:50%;
+    border:2px solid var(--magenta);
+  }
+  .iconbtn{
+    width:46px; height:46px;
+    border-radius:50%;
+    background:rgba(255,255,255,0.08);
+    border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff;
+    font-size:18px;
+    cursor:pointer;
+  }
+
+  /* start overlay */
+  .gate{
+    position:absolute; inset:0; z-index:20;
+    background:radial-gradient(circle at 50% 35%, #14141c 0%, #08080c 70%);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:32px;
+  }
+  .gate h1{
+    font-family:'Arial Black', Helvetica, sans-serif;
+    font-weight:900;
+    font-size:34px;
+    letter-spacing:1px;
+    margin:0 0 6px 0;
+    line-height:1.05;
+  }
+  .gate h1 span{ color:var(--magenta); }
+  .gate p{
+    font-family:'Courier New', monospace;
+    font-size:12.5px;
+    color:rgba(255,255,255,0.65);
+    letter-spacing:0.5px;
+    max-width:280px;
+    margin:0 0 26px 0;
+    line-height:1.6;
+  }
+  .gate button{
+    font-family:'Arial Black', Helvetica, sans-serif;
+    font-size:14px;
+    letter-spacing:1px;
+    color:#08080c;
+    background:var(--cyan);
+    border:none;
+    padding:15px 34px;
+    border-radius:100px;
+    cursor:pointer;
+  }
+  .gate .err{
+    margin-top:16px;
+    color:var(--magenta);
+    font-family:'Courier New', monospace;
+    font-size:11.5px;
+    max-width:280px;
+  }
+
+  /* preview after capture */
+  .preview-wrap{
+    position:absolute; inset:0; z-index:30;
+    background:#08080c;
+    display:none;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom)) 20px;
+  }
+  .preview-wrap.show{ display:flex; }
+  .preview-wrap img{
+    max-width:100%; max-height:70vh;
+    border-radius:6px;
+    border:1px solid var(--line);
+  }
+  .preview-actions{
+    display:flex; gap:14px; margin-top:20px;
+  }
+  .preview-actions a, .preview-actions button{
+    font-family:'Arial Black', Helvetica, sans-serif;
+    font-size:12.5px;
+    letter-spacing:1px;
+    padding:13px 22px;
+    border-radius:100px;
+    border:1px solid var(--line);
+    background:rgba(255,255,255,0.06);
+    color:#fff;
+    text-decoration:none;
+    cursor:pointer;
+  }
+  .preview-actions .save{
+    background:var(--yellow);
+    color:#08080c;
+    border:none;
+  }
+
+  .flash{
+    position:absolute; inset:0; background:#fff; opacity:0;
+    z-index:15; pointer-events:none;
+  }
+  .flash.on{ animation: flashpop .35s ease; }
+  @keyframes flashpop{ 0%{opacity:0.9;} 100%{opacity:0;} }
+</style>
+</head>
+<body>
+
+<div class="stage" id="stage">
+  <video id="video" playsinline autoplay muted></video>
+  <canvas class="output" id="output"></canvas>
+
+  <div class="bracket tl" id="b-tl"></div>
+  <div class="bracket tr" id="b-tr"></div>
+  <div class="bracket bl" id="b-bl"></div>
+  <div class="bracket br" id="b-br"></div>
+
+  <div class="hud-top">
+    <div class="brand">PEACE<span>://</span>BLUR</div>
+    <div class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">SCANNING</span></div>
+  </div>
+
+  <div class="hud-bottom">
+    <div class="hint" id="hint">angkat 2 jari (✌️) buat munculin fotonya</div>
+    <div class="controls-row">
+      <div class="iconbtn" id="flipBtn" title="ganti kamera">⟳</div>
+      <div class="shutter" id="shutterBtn"><div class="ring"></div></div>
+      <div class="iconbtn" id="blurToggleBtn" title="mode blur">👁</div>
+    </div>
+  </div>
+
+  <div class="flash" id="flash"></div>
+</div>
+
+<div class="gate" id="gate">
+  <h1>PEACE<span>://</span>BLUR</h1>
+  <p>KAMERA LO BAKAL BLUR TERUS. MUNCUL CUMA KALO LO KASIH TANDA DAMAI ✌️ KE LAYAR. IZININ AKSES KAMERA BUAT MULAI.</p>
+  <button id="startBtn">NYALAIN KAMERA</button>
+  <div class="err" id="errBox" style="display:none;"></div>
+</div>
+
+<div class="preview-wrap" id="previewWrap">
+  <img id="previewImg" alt="hasil foto">
+  <div class="preview-actions">
+    <button id="retakeBtn">ULANGI</button>
+    <a id="saveBtn" class="save" download="peace-blur.png">SIMPEN</a>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script>
+(function(){
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('output');
+  const ctx = canvas.getContext('2d');
+  const statusPill = document.getElementById('statusPill');
+  const statusText = document.getElementById('statusText');
+  const hint = document.getElementById('hint');
+  const brackets = [document.getElementById('b-tl'), document.getElementById('b-tr'), document.getElementById('b-bl'), document.getElementById('b-br')];
+  const gate = document.getElementById('gate');
+  const startBtn = document.getElementById('startBtn');
+  const errBox = document.getElementById('errBox');
+  const shutterBtn = document.getElementById('shutterBtn');
+  const flipBtn = document.getElementById('flipBtn');
+  const blurToggleBtn = document.getElementById('blurToggleBtn');
+  const flash = document.getElementById('flash');
+  const previewWrap = document.getElementById('previewWrap');
+  const previewImg = document.getElementById('previewImg');
+  const retakeBtn = document.getElementById('retakeBtn');
+  const saveBtn = document.getElementById('saveBtn');
+
+  let isClear = false;       // true when peace sign detected
+  let manualForceBlur = false; // toggle button forces always-blur (ignores gesture)
+  let currentFacing = 'user';
+  let stream = null;
+  let hands = null;
+  let rafId = null;
+  let lastDetectTime = 0;
+
+  const BLUR_PX = 26;
+
+  function setStatus(clear){
+    isClear = clear;
+    if(manualForceBlur){
+      statusPill.classList.remove('clear');
+      statusText.textContent = 'BLUR LOCKED';
+      hint.textContent = 'mode blur dikunci — tap 👁 buat balikin deteksi';
+      brackets.forEach(b=>b.classList.remove('clear'));
+      return;
+    }
+    if(clear){
+      statusPill.classList.add('clear');
+      statusText.textContent = 'JELAS ✌️';
+      hint.textContent = 'mantap, tahan tandanya buat foto';
+      brackets.forEach(b=>b.classList.add('clear'));
+    } else {
+      statusPill.classList.remove('clear');
+      statusText.textContent = 'SCANNING';
+      hint.textContent = 'angkat 2 jari (✌️) buat munculin fotonya';
+      brackets.forEach(b=>b.classList.remove('clear'));
+    }
+  }
+
+  function isPeaceSign(landmarks){
+    // landmarks: 21 points, normalized coords, y grows downward
+    const tip = i => landmarks[i];
+    const indexUp  = tip(8).y  < tip(6).y  - 0.02;
+    const middleUp = tip(12).y < tip(10).y - 0.02;
+    const ringDown  = tip(16).y > tip(14).y - 0.01;
+    const pinkyDown = tip(20).y > tip(18).y - 0.01;
+    return indexUp && middleUp && ringDown && pinkyDown;
+  }
+
+  async function onResults(results){
+    let peace = false;
+    if(results.multiHandLandmarks && results.multiHandLandmarks.length){
+      for(const lm of results.multiHandLandmarks){
+        if(isPeaceSign(lm)){ peace = true; break; }
+      }
+    }
+    if(!manualForceBlur) setStatus(peace);
+    drawFrame();
+  }
+
+  function drawFrame(){
+    if(!video.videoWidth) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const shouldBlur = manualForceBlur ? true : !isClear;
+    ctx.filter = shouldBlur ? `blur(${BLUR_PX}px)` : 'none';
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  }
+
+  async function startCamera(facing){
+    if(stream){
+      stream.getTracks().forEach(t=>t.stop());
+    }
+    const constraints = {
+      video: { facingMode: facing, width:{ideal:1280}, height:{ideal:1280} },
+      audio:false
+    };
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
+    video.srcObject = stream;
+    await video.play();
+  }
+
+  function loop(){
+    // continuous draw even if MediaPipe lags, keeps last known state
+    drawFrame();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  async function init(){
+    try{
+      await startCamera(currentFacing);
+    }catch(e){
+      errBox.style.display = 'block';
+      errBox.textContent = 'GAGAL AKSES KAMERA: ' + (e.message || e.name || 'unknown error') + '. cek izin kamera di browser lo.';
+      return;
+    }
+
+    gate.style.display = 'none';
+
+    hands = new Hands({locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
+    hands.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.5
+    });
+    hands.onResults(onResults);
+
+    async function detectLoop(){
+      if(video.readyState >= 2){
+        await hands.send({image: video});
+      }
+      requestAnimationFrame(detectLoop);
+    }
+    detectLoop();
+    loop();
+  }
+
+  startBtn.addEventListener('click', init);
+
+  flipBtn.addEventListener('click', async ()=>{
+    currentFacing = currentFacing === 'user' ? 'environment' : 'user';
+    try{ await startCamera(currentFacing); }catch(e){}
+  });
+
+  blurToggleBtn.addEventListener('click', ()=>{
+    manualForceBlur = !manualForceBlur;
+    blurToggleBtn.style.background = manualForceBlur ? 'rgba(255,46,126,0.35)' : 'rgba(255,255,255,0.08)';
+    setStatus(isClear);
+  });
+
+  shutterBtn.addEventListener('click', ()=>{
+    flash.classList.remove('on');
+    void flash.offsetWidth;
+    flash.classList.add('on');
+
+    const shotCanvas = document.createElement('canvas');
+    shotCanvas.width = canvas.width;
+    shotCanvas.height = canvas.height;
+    const sctx = shotCanvas.getContext('2d');
+    // mirror to match what user sees
+    sctx.translate(shotCanvas.width, 0);
+    sctx.scale(-1,1);
+    sctx.drawImage(canvas, 0, 0);
+
+    const dataUrl = shotCanvas.toDataURL('image/png');
+    previewImg.src = dataUrl;
+    saveBtn.href = dataUrl;
+    previewWrap.classList.add('show');
+  });
+
+  retakeBtn.addEventListener('click', ()=>{
+    previewWrap.classList.remove('show');
+  });
+
+})();
+</script>
+</body>
+</html>
